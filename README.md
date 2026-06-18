@@ -204,5 +204,10 @@ Next.js dashboard ──REST + JWT──▶ Spring Boot API ──restricted rol
   realtime alert toasts, animated detail popups.
 - **Postgres** is the system of record with RLS as the isolation safety net.
 
+**Learning the backend?** [`docs/BACKEND_GUIDE.md`](docs/BACKEND_GUIDE.md) is a guided,
+teaching-oriented walkthrough of every part of the Spring Boot backend (DI, JPA, security,
+AOP/transactions, the two-layer tenant isolation, analytics SQL, scheduling) with a suggested
+reading order and exercises.
+
 Module-level docs: see [`mock-shop-api/README.md`](mock-shop-api/README.md) and
 [`frontend/README.md`](frontend/README.md).
