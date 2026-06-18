@@ -1,0 +1,77 @@
+name: merchanthub
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: merchanthub-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-merchanthub}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      APP_DB_USER: ${APP_DB_USER:-merchanthub_app}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-merchanthub_app_pw}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Cluster-level role creation runs once on first init (before Flyway).
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-merchanthub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mock-shop-api:
+    build: ./mock-shop-api
+    container_name: merchanthub-mock-shop-api
+    environment:
+      PORT: 4000
+      BACKEND_WEBHOOK_URL: ${BACKEND_WEBHOOK_URL:-http://backend:8080/api/webhooks/orders}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-webhook-hmac-secret-change-me}
+    ports:
+      - "${MOCK_SHOP_PORT:-4000}:4000"
+
+  backend:
+    build: ./backend
+    container_name: merchanthub-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # Flyway connects as admin to run migrations / create objects.
+      DB_ADMIN_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-merchanthub}
+      DB_ADMIN_USER: ${POSTGRES_USER:-postgres}
+      DB_ADMIN_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      # The app runtime connects as the restricted, RLS-subject role.
+      DB_APP_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-merchanthub}
+      DB_APP_USER: ${APP_DB_USER:-merchanthub_app}
+      DB_APP_PASSWORD: ${APP_DB_PASSWORD:-merchanthub_app_pw}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-dev-jwt-signing-key-change-me-please-32b}
+      DEV_AUTH_ENABLED: ${DEV_AUTH_ENABLED:-true}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-webhook-hmac-secret-change-me}
+      SHOP_API_BASE_URL: ${SHOP_API_BASE_URL:-http://mock-shop-api:4000}
+      SYNC_INTERVAL_MS: ${SYNC_INTERVAL_MS:-300000}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080/api}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    container_name: merchanthub-frontend
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080/api}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+
+volumes:
+  db_data:

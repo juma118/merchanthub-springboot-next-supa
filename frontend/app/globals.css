@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-[#0b0f1a] text-slate-200 antialiased;
+  background-image: linear-gradient(
+    to bottom right,
+    theme('colors.slate.950'),
+    theme('colors.slate.950'),
+    rgb(49 46 129 / 0.3)
+  );
+  background-attachment: fixed;
+}
+
+/* Thin, subtle scrollbars (dark) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.55);
+}
+
+@layer components {
+  /* Reusable dark form control */
+  .input {
+    @apply w-full rounded-lg border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40;
+  }
+
+  /* Glassy card surface */
+  .surface {
+    @apply rounded-xl border border-white/10 bg-slate-900/60 shadow-lg shadow-black/30 backdrop-blur;
+  }
+}
+
+/* Respect reduced-motion: disable animations/transitions */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

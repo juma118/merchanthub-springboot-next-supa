@@ -1,0 +1,15 @@
+{
+  "name": "merchanthub-mock-shop-api",
+  "version": "1.0.0",
+  "description": "Mock ShopRenter-style external shop API for the MerchantHub project (push webhooks + pull sync demo).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
