@@ -209,5 +209,10 @@ teaching-oriented walkthrough of every part of the Spring Boot backend (DI, JPA,
 AOP/transactions, the two-layer tenant isolation, analytics SQL, scheduling) with a suggested
 reading order and exercises.
 
+**Interviewing with this project?** [`docs/INTERVIEW_QA.md`](docs/INTERVIEW_QA.md) is a Java +
+Spring Boot interview prep pack — ~120 Q&A with model answers covering the project design and
+the fundamentals it demonstrates (IoC/DI, transactions/AOP, JPA, Spring Security/JWT, RLS,
+testing, Docker, core Java), plus "war stories" for the inevitable *"tell me about a hard bug."*
+
 Module-level docs: see [`mock-shop-api/README.md`](mock-shop-api/README.md) and
 [`frontend/README.md`](frontend/README.md).
