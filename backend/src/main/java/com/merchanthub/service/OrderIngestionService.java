@@ -18,11 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Single entry point for turning an external order (from a webhook OR a pull
- * sync) into persisted rows. Idempotent on {@code (merchant_id, external_id)} so
- * a webhook and a later reconciliation sync never double-count the same order.
- */
 @Service
 public class OrderIngestionService {
 
@@ -31,15 +26,17 @@ public class OrderIngestionService {
     private final ProductRepository products;
     private final InventoryService inventoryService;
     private final AlertService alertService;
+    private final com.merchanthub.messaging.OutboxService outbox;
 
     public OrderIngestionService(OrderRepository orders, OrderItemRepository orderItems,
                                  ProductRepository products, InventoryService inventoryService,
-                                 AlertService alertService) {
+                                 AlertService alertService, com.merchanthub.messaging.OutboxService outbox) {
         this.orders = orders;
         this.orderItems = orderItems;
         this.products = products;
         this.inventoryService = inventoryService;
         this.alertService = alertService;
+        this.outbox = outbox;
     }
 
     public record ItemInput(String sku, int quantity, BigDecimal unitPrice) {}
@@ -98,6 +95,19 @@ public class OrderIngestionService {
         payload.put("total", order.getTotal());
         payload.put("status", order.getStatus());
         alertService.create(Alert.NEW_ORDER, payload);
+
+        // Publish a domain event via the transactional outbox (same transaction as
+        // the order). The notification-service consumes it from Kafka.
+        Map<String, Object> event = new HashMap<>();
+        event.put("event", "OrderIngested");
+        event.put("orderId", order.getId().toString());
+        event.put("merchantId", mid.toString());
+        event.put("externalId", externalId);
+        event.put("total", order.getTotal());
+        event.put("status", order.getStatus());
+        event.put("customerEmail", customerEmail);
+        event.put("occurredAt", Instant.now().toString());
+        outbox.append(com.merchanthub.messaging.OutboxService.TOPIC_ORDER_INGESTED, mid.toString(), "OrderIngested", event);
 
         return true;
     }

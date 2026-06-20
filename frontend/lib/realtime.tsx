@@ -1,10 +1,5 @@
 'use client';
 
-// useAlerts() works in two modes:
-//  - Supabase configured: subscribe to Postgres INSERTs on `alerts` & `orders`.
-//  - Otherwise: poll GET /alerts?unreadOnly=true every 10s and toast on new ids.
-// In both modes a new alert/order produces a toast and refreshes the bell.
-
 import {
   createContext,
   useCallback,

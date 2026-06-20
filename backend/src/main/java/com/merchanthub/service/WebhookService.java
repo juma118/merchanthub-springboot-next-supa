@@ -16,12 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 
-/**
- * Receives signed new-order webhooks from the shop API (the push ingestion path).
- * Verifies the HMAC-SHA256 signature, maps the payload to its tenant by API key,
- * and persists the order. The resulting row change is what Supabase Realtime
- * broadcasts live to the dashboard.
- */
 @Service
 public class WebhookService {
 

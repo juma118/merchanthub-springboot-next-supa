@@ -7,12 +7,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Resolves which merchant a request belongs to BEFORE any tenant context exists.
- * These lookups deliberately go through {@code SECURITY DEFINER} SQL functions
- * (installed in V2) so they are not blocked by the RLS policies they predate —
- * the only sanctioned way to read the {@code merchants} table without a context.
- */
 @Service
 public class MerchantResolver {
 

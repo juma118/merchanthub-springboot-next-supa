@@ -1,6 +1,3 @@
-// Typed API client. Attaches Bearer token to every request, throws on non-2xx
-// surfacing the backend `{ message }`, and on 401 clears the token + redirects.
-
 import { env } from './env';
 import { getToken, clearToken } from './token';
 import type {

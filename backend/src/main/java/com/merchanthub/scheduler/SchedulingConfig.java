@@ -9,10 +9,6 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
 import java.time.Duration;
 
-/**
- * Registers the periodic pull-sync task. An interval of {@code <= 0} disables it
- * entirely (no task is registered), which is what {@code SYNC_INTERVAL_MS=0} means.
- */
 @Configuration
 public class SchedulingConfig implements SchedulingConfigurer {
 

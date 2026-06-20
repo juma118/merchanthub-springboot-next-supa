@@ -11,13 +11,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Transactional persistence for an inbound webhook order. Kept in its own bean so
- * the {@code @Transactional} proxy (and the tenant-isolation aspect) engage when
- * called from {@link WebhookService}. Records a {@code webhook} sync-log entry in
- * the same transaction as the order, so ingestion and its audit trail commit
- * atomically.
- */
 @Service
 public class WebhookPersistenceService {
 

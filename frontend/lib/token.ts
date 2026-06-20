@@ -1,6 +1,3 @@
-// Token persistence in both localStorage and a cookie so it survives reload
-// and is available to any client component. SSR-safe (guards `window`).
-
 const TOKEN_KEY = 'mh_token';
 const MERCHANT_KEY = 'mh_merchant';
 

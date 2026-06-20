@@ -16,17 +16,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Authenticates every request carrying a Bearer JWT: validates the token,
- * resolves (or auto-provisions) the owning merchant, and pins it into both the
- * Spring Security context and the {@link TenantContext} for the duration of the
- * request. Requests without a token pass through unauthenticated and are
- * rejected later by the security rules if the path is protected.
- *
- * <p>Intentionally NOT a Spring bean: that would make Spring Boot auto-register it
- * as a servlet filter in addition to the security chain, running it twice. It is
- * constructed directly in {@link SecurityConfig}.
- */
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;

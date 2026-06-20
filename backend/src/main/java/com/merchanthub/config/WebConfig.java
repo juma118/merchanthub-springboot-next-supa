@@ -18,11 +18,6 @@ public class WebConfig {
         this.props = props;
     }
 
-    /**
-     * Single source of CORS config. Spring Security's {@code .cors()} auto-detects
-     * this bean, so preflight and actual requests are handled consistently (no
-     * duplicate headers from a second mechanism).
-     */
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

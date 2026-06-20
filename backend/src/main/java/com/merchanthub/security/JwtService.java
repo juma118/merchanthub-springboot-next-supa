@@ -16,11 +16,6 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
-/**
- * Validates Supabase-style HS256 JWTs and (in dev) mints them. Supabase signs
- * access tokens with the project's JWT secret using HS256; the {@code sub} claim
- * is the auth user id and {@code email} carries the user's email.
- */
 @Service
 public class JwtService {
 

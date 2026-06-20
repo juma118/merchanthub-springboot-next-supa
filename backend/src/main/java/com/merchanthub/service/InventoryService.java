@@ -23,11 +23,14 @@ public class InventoryService {
     private final InventoryRepository inventory;
     private final ProductRepository products;
     private final AlertService alerts;
+    private final com.merchanthub.messaging.OutboxService outbox;
 
-    public InventoryService(InventoryRepository inventory, ProductRepository products, AlertService alerts) {
+    public InventoryService(InventoryRepository inventory, ProductRepository products, AlertService alerts,
+                            com.merchanthub.messaging.OutboxService outbox) {
         this.inventory = inventory;
         this.products = products;
         this.alerts = alerts;
+        this.outbox = outbox;
     }
 
     public record ItemQty(String sku, int quantity) {}
@@ -68,8 +71,6 @@ public class InventoryService {
                 inv.getQuantity(), inv.getLowStockThreshold(), inv.isLowStock());
     }
 
-    /** Decrements stock for the SKUs in an ingested order and raises low-stock
-     *  alerts as thresholds are crossed. */
     @Transactional
     public void applyOrderItems(List<ItemQty> items) {
         UUID mid = TenantContext.requireMerchantId();
@@ -104,6 +105,14 @@ public class InventoryService {
             payload.put("quantity", inv.getQuantity());
             payload.put("threshold", inv.getLowStockThreshold());
             alerts.create(Alert.LOW_STOCK, payload);
+
+            // Mirror the alert as a domain event for downstream services (e.g. email/Slack).
+            Map<String, Object> event = new HashMap<>(payload);
+            event.put("event", "LowStockDetected");
+            event.put("merchantId", p.getMerchantId().toString());
+            event.put("occurredAt", java.time.Instant.now().toString());
+            outbox.append(com.merchanthub.messaging.OutboxService.TOPIC_LOW_STOCK,
+                    p.getMerchantId().toString(), "LowStockDetected", event);
         }
     }
 }

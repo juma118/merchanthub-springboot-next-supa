@@ -11,10 +11,6 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
-/**
- * Issues HS256 tokens for local development so the whole stack is runnable
- * without a real Supabase project. Disabled unless {@code merchanthub.dev-auth-enabled}.
- */
 @Service
 public class AuthService {
 

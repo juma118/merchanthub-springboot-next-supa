@@ -2,12 +2,6 @@ package com.merchanthub.tenant;
 
 import java.util.UUID;
 
-/**
- * Holds the current merchant (tenant) for the executing thread. Populated by the
- * JWT filter for API requests, and explicitly by the webhook receiver and the
- * scheduled sync job for non-request threads. Read by {@link TenantIsolationAspect}
- * to scope the database session.
- */
 public final class TenantContext {
 
     private static final ThreadLocal<UUID> CURRENT = new ThreadLocal<>();

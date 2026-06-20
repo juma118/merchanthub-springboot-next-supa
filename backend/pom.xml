@@ -63,6 +63,12 @@
       <scope>runtime</scope>
     </dependency>
 
+    <!-- Messaging: publish domain events to Kafka (transactional outbox) -->
+    <dependency>
+      <groupId>org.springframework.kafka</groupId>
+      <artifactId>spring-kafka</artifactId>
+    </dependency>
+
     <!-- Ops -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

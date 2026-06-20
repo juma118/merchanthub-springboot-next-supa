@@ -16,10 +16,6 @@ public class WebhookController {
         this.webhookService = webhookService;
     }
 
-    /**
-     * Signed new-order webhook from the shop API (push ingestion). The raw body is
-     * read verbatim so the HMAC signature can be verified before parsing.
-     */
     @PostMapping("/orders")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Map<String, String> receiveOrder(

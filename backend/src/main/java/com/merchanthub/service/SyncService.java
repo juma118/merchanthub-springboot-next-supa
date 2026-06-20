@@ -25,11 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Scheduled / on-demand PULL reconciliation against the shop API — the reliable
- * counterpart to webhooks. Upserts the catalog + inventory levels and ingests any
- * orders that webhooks may have missed. Every run is recorded in {@code sync_logs}.
- */
 @Service
 public class SyncService {
 
@@ -52,11 +47,6 @@ public class SyncService {
         this.alerts = alerts;
     }
 
-    /**
-     * Reconcile one merchant. The caller MUST have pinned the tenant
-     * ({@link TenantContext}) to {@code merchantId} — the JWT filter does this for
-     * API requests and the scheduler does it explicitly.
-     */
     @Transactional
     public SyncRunResponse doSync(UUID merchantId, String apiKey) {
         SyncLog logRow = new SyncLog();

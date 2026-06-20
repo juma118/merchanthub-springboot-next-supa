@@ -22,8 +22,6 @@ public class AlertService {
         this.alerts = alerts;
     }
 
-    /** Persists an alert for the current tenant. The row change is what Supabase
-     *  Realtime broadcasts to the subscribed dashboard. */
     @Transactional
     public Alert create(String type, Map<String, Object> payload) {
         Alert a = new Alert();

@@ -15,12 +15,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-/**
- * Server-side analytics. All aggregation runs in Postgres (date_trunc, window
- * sums) so the browser receives small, pre-computed result sets. Every query is
- * scoped both explicitly ({@code merchant_id = :mid}) and implicitly (RLS via the
- * tenant GUC set by {@link com.merchanthub.tenant.TenantIsolationAspect}).
- */
 @Service
 public class AnalyticsService {
 

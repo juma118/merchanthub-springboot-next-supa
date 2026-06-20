@@ -137,12 +137,12 @@ public class ProductService {
         for (Product p : products.findByMerchantId(mid)) {
             Inventory i = inv.get(p.getId());
             sb.append(csv(p.getSku())).append(',')
-              .append(csv(p.getName())).append(',')
-              .append(csv(p.getDescription())).append(',')
-              .append(p.getPrice() == null ? "0" : p.getPrice().toPlainString()).append(',')
-              .append(i != null ? i.getQuantity() : 0).append(',')
-              .append(i != null ? i.getLowStockThreshold() : 5).append(',')
-              .append(csv(p.getImageUrl())).append('\n');
+                    .append(csv(p.getName())).append(',')
+                    .append(csv(p.getDescription())).append(',')
+                    .append(p.getPrice() == null ? "0" : p.getPrice().toPlainString()).append(',')
+                    .append(i != null ? i.getQuantity() : 0).append(',')
+                    .append(i != null ? i.getLowStockThreshold() : 5).append(',')
+                    .append(csv(p.getImageUrl())).append('\n');
         }
         return sb.toString();
     }
