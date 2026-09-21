@@ -21,4 +21,9 @@ public class KafkaTopicsConfig {
     NewTopic lowStockTopic() {
         return TopicBuilder.name(OutboxService.TOPIC_LOW_STOCK).partitions(1).replicas(1).build();
     }
+
+    @Bean
+    NewTopic orderWebhookReceivedTopic() {
+        return TopicBuilder.name(WebhookEventListener.TOPIC_ORDER_WEBHOOK_RECEIVED).partitions(1).replicas(1).build();
+    }
 }

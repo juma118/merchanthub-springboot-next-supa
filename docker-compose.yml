@@ -25,9 +25,13 @@ services:
   mock-shop-api:
     build: ./mock-shop-api
     container_name: merchanthub-mock-shop-api
+    depends_on:
+      webhook-ingest-service:
+        condition: service_started
     environment:
       PORT: 4000
-      BACKEND_WEBHOOK_URL: ${BACKEND_WEBHOOK_URL:-http://backend:8080/api/webhooks/orders}
+      # Points at the standalone Quarkus edge service, not the backend directly.
+      BACKEND_WEBHOOK_URL: ${BACKEND_WEBHOOK_URL:-http://webhook-ingest-service:8082/webhooks/orders}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-webhook-hmac-secret-change-me}
     ports:
       - "${MOCK_SHOP_PORT:-4000}:4000"
@@ -84,8 +88,43 @@ services:
       SHOP_API_BASE_URL: ${SHOP_API_BASE_URL:-http://mock-shop-api:4000}
       SYNC_INTERVAL_MS: ${SYNC_INTERVAL_MS:-300000}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      # AI daily insights — blank disables the feature gracefully.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+      # S3 order-report export — blank bucket disables the feature.
+      REPORTS_S3_BUCKET: ${REPORTS_S3_BUCKET:-}
+      REPORTS_S3_ENDPOINT_OVERRIDE: ${REPORTS_S3_ENDPOINT_OVERRIDE:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+
+  # Standalone Quarkus edge service: verifies the shop's HMAC-SHA256 webhook
+  # signature and resolves the merchant, then republishes the order onto
+  # Kafka for the backend to persist (WebhookEventListener). Built to run as
+  # a GraalVM native image (see webhook-ingest-service/src/main/docker) for
+  # sub-second cold starts on the public-facing ingestion path; the compose
+  # stack here runs the JVM-mode image so `docker compose up` doesn't require
+  # a local GraalVM install.
+  webhook-ingest-service:
+    build:
+      context: ./webhook-ingest-service
+      dockerfile: src/main/docker/Dockerfile.jvm
+    container_name: merchanthub-webhook-ingest-service
+    depends_on:
+      db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DB_APP_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-merchanthub}
+      DB_APP_USER: ${APP_DB_USER:-merchanthub_app}
+      DB_APP_PASSWORD: ${APP_DB_PASSWORD:-merchanthub_app_pw}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-webhook-hmac-secret-change-me}
+    ports:
+      - "${WEBHOOK_INGEST_PORT:-8082}:8082"
 
   # Independent microservice: consumes domain events from Kafka and emits
   # (simulated) outbound notifications.

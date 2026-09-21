@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- Local/dev default: human-readable console. -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -- %msg [%X{requestId},merchant=%X{merchantId}]%n</pattern>
+        </encoder>
+    </appender>
+
+    <!--
+      Prod/Splunk: one JSON object per line on stdout, with MDC fields
+      (requestId, merchantId — set by RequestLoggingFilter / JwtAuthFilter)
+      promoted to top-level searchable fields. A Splunk Universal Forwarder
+      or HEC sidecar tailing this container's stdout ingests it directly —
+      no app-side Splunk SDK/credentials needed. Toggle by adding "json" to
+      SPRING_PROFILES_ACTIVE (e.g. SPRING_PROFILES_ACTIVE=dev,json).
+    -->
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service":"merchanthub-backend"}</customFields>
+            <includeMdcKeyName>requestId</includeMdcKeyName>
+            <includeMdcKeyName>merchantId</includeMdcKeyName>
+        </encoder>
+    </appender>
+
+    <springProfile name="!json">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+    <springProfile name="json">
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+
+    <logger name="com.merchanthub" level="${MERCHANTHUB_LOG_LEVEL:-INFO}"/>
+</configuration>

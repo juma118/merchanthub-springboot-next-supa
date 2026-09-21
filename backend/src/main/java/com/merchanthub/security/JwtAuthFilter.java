@@ -6,6 +6,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.MDC;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -60,11 +61,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     principal, null, List.of(new SimpleGrantedAuthority("ROLE_MERCHANT")));
             SecurityContextHolder.getContext().setAuthentication(auth);
             TenantContext.setMerchantId(merchant.id());
+            MDC.put("merchantId", merchant.id().toString());
 
             chain.doFilter(request, response);
         } finally {
             TenantContext.clear();
             SecurityContextHolder.clearContext();
+            MDC.remove("merchantId");
         }
     }
 

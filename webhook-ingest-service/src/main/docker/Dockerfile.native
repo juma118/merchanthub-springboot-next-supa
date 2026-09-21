@@ -1,0 +1,17 @@
+# Build (from webhook-ingest-service/):
+#   mvn -Pnative package
+#   docker build -f src/main/docker/Dockerfile.native -t merchanthub/webhook-ingest-service .
+#
+# Native image: sub-second cold start, small footprint — well suited to a
+# public-facing webhook endpoint that must come up fast under a rolling deploy.
+FROM quay.io/quarkus/quarkus-micro-image:2.0
+WORKDIR /work/
+RUN chown 1001 /work \
+    && chmod "g+rwX" /work \
+    && chown 1001:root /work
+COPY --chown=1001:root target/*-runner /work/application
+
+EXPOSE 8082
+USER 1001
+
+ENTRYPOINT ["./application", "-Dquarkus.http.host=0.0.0.0"]

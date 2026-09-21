@@ -28,6 +28,18 @@ public class AppProperties {
     /** Comma-separated CORS origins allowed to call the API. */
     private String corsAllowedOrigins = "http://localhost:3000";
 
+    /** Anthropic API key for the AI daily-insights feature. Blank disables it. */
+    private String anthropicApiKey;
+
+    /** Anthropic model used to generate the daily insights summary. */
+    private String anthropicModel = "claude-haiku-4-5-20251001";
+
+    /** S3 bucket order-report exports are uploaded to. Blank disables the feature. */
+    private String reportsS3Bucket;
+
+    /** Optional S3-compatible endpoint override (e.g. LocalStack) for local dev. */
+    private String reportsS3EndpointOverride;
+
     public String getJwtSecret() { return jwtSecret; }
     public void setJwtSecret(String jwtSecret) { this.jwtSecret = jwtSecret; }
 
@@ -45,4 +57,16 @@ public class AppProperties {
 
     public String getCorsAllowedOrigins() { return corsAllowedOrigins; }
     public void setCorsAllowedOrigins(String corsAllowedOrigins) { this.corsAllowedOrigins = corsAllowedOrigins; }
+
+    public String getAnthropicApiKey() { return anthropicApiKey; }
+    public void setAnthropicApiKey(String anthropicApiKey) { this.anthropicApiKey = anthropicApiKey; }
+
+    public String getAnthropicModel() { return anthropicModel; }
+    public void setAnthropicModel(String anthropicModel) { this.anthropicModel = anthropicModel; }
+
+    public String getReportsS3Bucket() { return reportsS3Bucket; }
+    public void setReportsS3Bucket(String reportsS3Bucket) { this.reportsS3Bucket = reportsS3Bucket; }
+
+    public String getReportsS3EndpointOverride() { return reportsS3EndpointOverride; }
+    public void setReportsS3EndpointOverride(String reportsS3EndpointOverride) { this.reportsS3EndpointOverride = reportsS3EndpointOverride; }
 }

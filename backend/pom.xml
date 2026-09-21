@@ -69,10 +69,26 @@
       <artifactId>spring-kafka</artifactId>
     </dependency>
 
+    <!-- AWS S3: order-report export (see service.ReportExportService) -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+      <version>2.28.16</version>
+    </dependency>
+
     <!-- Ops -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!-- Structured JSON logging: how logs reach Splunk in prod (HEC/Universal
+         Forwarder tails stdout and ingests one JSON event per line). See
+         logback-spring.xml and config/RequestLoggingFilter. -->
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>8.0</version>
     </dependency>
 
     <!-- API docs -->

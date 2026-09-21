@@ -515,8 +515,9 @@ The services and what they teach:
 | `AlertService` | create/list/mark-read alerts | a tiny service reused by many others |
 | `AnalyticsService` | revenue, top products, funnel, forecast | raw aggregation SQL via `JdbcTemplate`; period-over-period math |
 | `SyncService` | pull-sync a merchant from the shop API | calls external API, upserts catalog, ingests orders, writes a `sync_log` |
-| `WebhookService` | verify + dispatch inbound webhooks | HMAC signature check; sets `TenantContext` manually |
+| `WebhookService` | verify + dispatch inbound webhooks; also the shared entry point both ingestion paths below call into | HMAC signature check; sets `TenantContext` manually |
 | `WebhookPersistenceService` | transactional write for a webhook | exists *only* to dodge the self-invocation proxy trap (§7) |
+| `WebhookEventListener` (`messaging/`) | consumes `order.webhook.received` from Kafka | the *async* ingestion path — see the note below |
 | `AuthService` | mint dev tokens | dev-only login; deterministic auth id from email |
 
 A few worth reading closely:
@@ -536,6 +537,17 @@ A few worth reading closely:
   verifies the HMAC signature and resolves the tenant (no transaction yet); then it calls the
   *separate* `WebhookPersistenceService` bean so the `@Transactional` proxy actually engages.
   This is the self-invocation lesson made concrete.
+
+> **How a webhook actually reaches this code today:** in the docker-compose stack, the shop
+> posts to a *standalone Quarkus service* (`webhook-ingest-service/`) instead of the backend
+> directly. That service does the HMAC check and merchant lookup itself (fast, native-image
+> startup, decoupled from the backend's deploy cadence), then publishes the validated order to
+> a Kafka topic (`order.webhook.received`). `WebhookEventListener` here in the backend consumes
+> it and calls `webhookService.ingestForMerchant(...)` — the same method
+> `WebhookService.handleOrderWebhook` calls after verifying the signature itself. Both paths
+> converge on one method, so `handleOrderWebhook` (and `WebhookController`'s HTTP endpoint) still
+> work standalone and are still what the integration tests exercise directly — the Quarkus
+> service is a new front door, not a replacement for the backend's own verification logic.
 
 > **Concept — HMAC signature verification (webhooks):** the shop API signs the raw request
 > body with a shared secret (`HMAC-SHA256`) and sends the hex digest in a header. We recompute
@@ -582,7 +594,8 @@ Annotations to learn:
 
 The controllers map 1:1 to features: `AuthController`, `MeController`, `ProductController`,
 `InventoryController`, `OrderController`, `AnalyticsController`, `AlertController`,
-`SyncController`, `WebhookController`. `WebParams` is a small helper for lenient date parsing.
+`SyncController`, `WebhookController`, `InsightsController`, `ReportController`. `WebParams` is
+a small helper for lenient date parsing.
 
 Note `WebhookController` takes `@RequestBody String rawBody` (not a parsed object) — it needs
 the *exact* bytes to verify the HMAC signature before trusting/parsing them.
@@ -705,8 +718,14 @@ A sensible order to read the code with this guide open:
    check, inventory upsert). Notice `@Transactional`.
 6. **Then ingestion:** `WebhookController` → `WebhookService` → `WebhookPersistenceService` →
    `OrderIngestionService`. Learn HMAC verification, the self-invocation fix, and idempotency.
+   Then look at `WebhookEventListener` and `webhook-ingest-service/` (the Quarkus module) to see
+   the same verify-then-persist logic split across a process boundary via Kafka.
 7. **Then analytics:** `AnalyticsService` — raw SQL aggregation and why it's not JPA.
 8. **Then background work:** `SchedulingConfig` → `SyncScheduler` → `SyncService`.
+9. **Then the newer additions:** `InsightsService` (LLM summary grounded in `AnalyticsService`'s
+   own numbers) and `ReportExportService` (S3 CSV export) — both follow the same "feature is a
+   no-op, not a crash, when unconfigured" pattern (`AnthropicClient.isConfigured()`,
+   `ObjectProvider<S3Client>` in `ReportExportService`).
 
 ### Exercises to cement it
 

@@ -2,6 +2,7 @@ package com.merchanthub.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.merchanthub.config.AppProperties;
+import com.merchanthub.dto.WebhookDtos;
 import com.merchanthub.dto.WebhookDtos.WebhookPayload;
 import com.merchanthub.tenant.MerchantResolver;
 import com.merchanthub.tenant.TenantContext;
@@ -15,6 +16,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.UUID;
 
 @Service
 public class WebhookService {
@@ -51,15 +53,30 @@ public class WebhookService {
         MerchantResolver.MerchantRow merchant = merchantResolver.findByApiKey(payload.apiKey())
                 .orElseThrow(() -> new ApiExceptions.Unauthorized("Unknown shop API key"));
 
+        ingestForMerchant(merchant.id(), payload.order());
+    }
+
+    /**
+     * Persists an order already validated and attributed to a merchant —
+     * either by {@link #handleOrderWebhook} above (signature + lookup done
+     * in-process) or by {@code WebhookEventListener}, which consumes orders
+     * that the standalone webhook-ingest-service (Quarkus) already verified
+     * and resolved before publishing them to Kafka.
+     */
+    public void ingestForMerchant(UUID merchantId, WebhookDtos.WebhookOrder order) {
         // Pin the tenant, then run the persistence in a separate, proxied bean so
         // its @Transactional (and the tenant aspect) actually engage.
-        TenantContext.setMerchantId(merchant.id());
+        TenantContext.setMerchantId(merchantId);
         try {
-            persistence.persist(merchant.id(), payload.order());
-            log.info("Webhook order {} ingested for merchant {}", payload.order().externalId(), merchant.id());
+            persistence.persist(merchantId, order);
+            log.info("Webhook order {} ingested for merchant {}", order.externalId(), merchantId);
         } finally {
             TenantContext.clear();
         }
+    }
+
+    public WebhookDtos.WebhookOrder parseOrder(String rawBody) throws Exception {
+        return objectMapper.readValue(rawBody, WebhookPayload.class).order();
     }
 
     private boolean verifySignature(String body, String signature) {

@@ -48,11 +48,13 @@ Revenue trend with period-over-period delta, order funnel, and top products.
 
 ```
 merchanthub/
-├── docker-compose.yml        # db + backend + mock-shop-api + frontend
+├── docker-compose.yml        # db + kafka + backend + webhook-ingest-service + notification-service + mock-shop-api + frontend
 ├── .env.example              # all configuration (copy to .env to override)
 ├── db/init/                  # cluster-level role creation (runs once, before Flyway)
-├── backend/                  # Spring Boot API (business logic, auth, analytics, sync)
+├── backend/                  # Spring Boot API (business logic, auth, analytics, sync, AI insights, S3 export)
 │   └── src/main/resources/db/migration/   # Flyway: schema → RLS → demo seed
+├── webhook-ingest-service/   # Standalone Quarkus edge service: HMAC verify + merchant lookup → Kafka
+├── notification-service/     # Spring Boot: consumes Kafka domain events, emits (simulated) notifications
 ├── mock-shop-api/            # Express service emulating the external shop API
 ├── frontend/                 # Next.js dashboard (dark UI, SSR analytics, realtime)
 └── tools/shots/              # Playwright screenshot script (dev tooling)
@@ -117,12 +119,16 @@ to touch the `merchants` table unscoped.
 |---|---|
 | **Tenant-scoped catalog & inventory CRUD** | `ProductService`, `InventoryService` + `/products`, `/inventory` |
 | **CSV bulk import / export** | `POST /api/products/import`, `GET /api/products/export` |
-| **Webhook ingestion (push)** | `WebhookController` → HMAC-SHA256 verified → `OrderIngestionService` |
+| **Webhook ingestion (push)** | `webhook-ingest-service` (Quarkus) verifies HMAC-SHA256 + resolves merchant at the edge → Kafka → `WebhookEventListener` persists |
 | **Scheduled pull-sync (reliability)** | `SchedulingConfig` + `SyncScheduler` → `SyncService` (all tenants) |
 | **Low-stock detection & alerts** | `InventoryService` raises `low_stock` alerts on threshold crossing |
 | **Realtime notifications** | `alerts`/`orders` row changes → Supabase Realtime → dashboard toasts (polling fallback) |
+| **Event-driven microservice** | Backend outbox → Kafka → `notification-service` consumes `order.ingested` / `inventory.low-stock` |
 | **Server-side analytics** | `AnalyticsService`: revenue trends + period compare, top products, funnel, forecast |
 | **Inventory forecasting** | 30-day moving average → days-to-stockout (`/api/analytics/forecast`) |
+| **AI daily insights (GenAI)** | `InsightsService` grounds an Anthropic Claude summary in the real revenue + forecast numbers (`/api/insights/daily-summary`) |
+| **Order-report export to S3** | `ReportExportService` uploads a CSV to S3 and returns a 15-minute presigned link (`POST /api/reports/orders/export`) |
+| **Splunk-ready structured logs** | JSON logs (per-request + per-tenant MDC fields) on stdout — `SPRING_PROFILES_ACTIVE=dev,json` |
 
 ### Try the ingestion paths
 
@@ -152,6 +158,8 @@ All settings live in [`.env.example`](.env.example) with sensible local defaults
 | `DEV_AUTH_ENABLED` | Exposes `POST /api/auth/dev-token`. **Must be `false` in production.** |
 | `WEBHOOK_SECRET` | HMAC key for verifying inbound shop webhooks. |
 | `SYNC_INTERVAL_MS` | Pull-sync cadence. `0` disables the scheduler. |
+| `ANTHROPIC_API_KEY` | Enables `GET /api/insights/daily-summary`. Blank → endpoint still responds with the real numbers, `aiAvailable:false`. |
+| `REPORTS_S3_BUCKET` / `REPORTS_S3_ENDPOINT_OVERRIDE` | Enables `POST /api/reports/orders/export`. Point the override at LocalStack/MinIO for local dev without real AWS. |
 | `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` | Optional. Set to enable real Supabase Auth + Realtime; leave blank to use dev-token auth + polling. |
 
 ### Using a real Supabase project
@@ -176,6 +184,13 @@ cd frontend && npm install && npm run dev           # :3000
 
 # Backend needs a JDK 21 + Maven, or just use Docker:
 docker compose up db backend
+
+# webhook-ingest-service (Quarkus) in dev mode — live reload on :8082
+cd webhook-ingest-service && mvn quarkus:dev
+
+# ...or build a GraalVM native image (requires a GraalVM install):
+cd webhook-ingest-service && mvn -Pnative package
+./target/webhook-ingest-service-0.1.0-runner
 ```
 
 ### Tests
@@ -192,14 +207,26 @@ cd backend && mvn test     # requires Docker for Testcontainers
 ## Architecture at a glance
 
 ```
+                                            ┌── Anthropic API (AI daily insights)
+                                            ├── S3 (order-report export)
+                                            ▼
 Next.js dashboard ──REST + JWT──▶ Spring Boot API ──restricted role + SET LOCAL──▶ Postgres (RLS)
-        ▲                                │  ▲                                           │
-        └────── Supabase Realtime ───────┘  └── signed webhooks / scheduled pull ──▶ Mock Shop API
-             (alerts / orders row changes)
+        ▲                                │  ▲   ▲                                        │
+        │                                │  │   └── order.ingested / inventory.low-stock ─┴──▶ Kafka ──▶ notification-service
+        │                                │  └── order.webhook.received ◀── Kafka ◀── webhook-ingest-service (Quarkus)
+        └────── Supabase Realtime ───────┘                                                     ▲
+             (alerts / orders row changes)                              HMAC-verified webhook ──┘
+                                                                                Mock Shop API
 ```
 
 - **Spring Boot** owns business logic, auth validation, tenant scoping, analytics
-  aggregation, webhook ingestion, and the scheduled sync.
+  aggregation, webhook persistence, and the scheduled sync.
+- **Quarkus** (`webhook-ingest-service`) is the public webhook front door: HMAC verification
+  and merchant lookup happen there, native-image-fast, decoupled from the backend's
+  deploy/restart cadence — it only talks to Postgres (read-only) and Kafka, never to the
+  backend directly.
+- **Kafka** is the event bus for both the webhook hand-off and the outbox-published domain
+  events (`order.ingested`, `inventory.low-stock`) that `notification-service` consumes.
 - **Next.js** owns all UX: SSR-friendly analytics pages, product/inventory management,
   realtime alert toasts, animated detail popups.
 - **Postgres** is the system of record with RLS as the isolation safety net.
