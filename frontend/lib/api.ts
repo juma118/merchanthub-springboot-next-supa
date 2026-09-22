@@ -1,7 +1,7 @@
 import { env } from './env';
 import { getToken, clearToken } from './token';
 import type {
-  DevTokenResponse,
+  AuthResponse,
   Me,
   Page,
   Product,
@@ -109,10 +109,16 @@ async function request<T>(
 
 export const api = {
   // ── Auth ──
-  devToken: (email: string) =>
-    request<DevTokenResponse>('/auth/dev-token', {
+  register: (name: string, email: string, password: string) =>
+    request<AuthResponse>('/auth/register', {
       method: 'POST',
-      body: { email },
+      body: { name, email, password },
+      auth: false,
+    }),
+  login: (email: string, password: string) =>
+    request<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: { email, password },
       auth: false,
     }),
   me: () => request<Me>('/me'),

@@ -2,15 +2,23 @@ package com.merchanthub.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
 
 public final class AuthDtos {
     private AuthDtos() {}
 
-    public record DevTokenRequest(@NotBlank @Email String email) {}
+    public record RegisterRequest(
+            @NotBlank String name,
+            @NotBlank @Email String email,
+            @NotBlank @Size(min = 8, max = 72) String password) {}
+
+    public record LoginRequest(
+            @NotBlank @Email String email,
+            @NotBlank String password) {}
 
     public record MerchantBrief(UUID id, String name, String email) {}
 
-    public record DevTokenResponse(String token, String tokenType, MerchantBrief merchant) {}
+    public record AuthResponse(String token, String tokenType, MerchantBrief merchant) {}
 }

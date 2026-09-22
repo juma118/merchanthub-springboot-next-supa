@@ -18,7 +18,7 @@ $$ LANGUAGE plpgsql;
 -- ── merchants (tenants) ──────────────────────────────────────────────────────
 CREATE TABLE merchants (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  auth_user_id  uuid UNIQUE,                       -- maps to Supabase auth uid (JWT sub)
+  auth_user_id  uuid UNIQUE,                       -- internal auth id, minted at registration (JWT sub)
   name          text NOT NULL,
   email         text,
   shop_api_key  text UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(16), 'hex'),

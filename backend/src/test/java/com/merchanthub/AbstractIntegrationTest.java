@@ -35,6 +35,5 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.flyway.user", POSTGRES::getUsername);
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("merchanthub.sync-interval-ms", () -> "0");
-        registry.add("merchanthub.dev-auth-enabled", () -> "true");
     }
 }

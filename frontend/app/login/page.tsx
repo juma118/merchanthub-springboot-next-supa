@@ -4,50 +4,38 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/useAuth';
 import { useToast } from '@/components/Toaster';
-import { isSupabaseConfigured } from '@/lib/env';
 import { Button, Card } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { token, ready, loginDev, loginSupabase } = useAuth();
+  const { token, ready, login, register } = useAuth();
   const { toast } = useToast();
 
-  const [devEmail, setDevEmail] = useState('demo@merchanthub.dev');
-  const [devLoading, setDevLoading] = useState(false);
-
-  const supabaseOn = isSupabaseConfigured();
-  const [sbEmail, setSbEmail] = useState('');
-  const [sbPassword, setSbPassword] = useState('');
-  const [sbLoading, setSbLoading] = useState(false);
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('demo@merchanthub.dev');
+  const [password, setPassword] = useState('demo1234');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (ready && token) router.replace('/dashboard');
   }, [ready, token, router]);
 
-  async function handleDev(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setDevLoading(true);
+    setLoading(true);
     try {
-      await loginDev(devEmail.trim());
+      if (mode === 'login') {
+        await login(email.trim(), password);
+      } else {
+        await register(name.trim(), email.trim(), password);
+      }
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Login failed. Is the backend running?';
-      toast({ title: 'Login failed', description: msg, variant: 'error' });
+      const msg = err instanceof ApiError ? err.message : 'Something went wrong. Is the backend running?';
+      toast({ title: mode === 'login' ? 'Login failed' : 'Registration failed', description: msg, variant: 'error' });
     } finally {
-      setDevLoading(false);
-    }
-  }
-
-  async function handleSupabase(e: React.FormEvent) {
-    e.preventDefault();
-    setSbLoading(true);
-    try {
-      await loginSupabase(sbEmail.trim(), sbPassword);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Supabase login failed.';
-      toast({ title: 'Login failed', description: msg, variant: 'error' });
-    } finally {
-      setSbLoading(false);
+      setLoading(false);
     }
   }
 
@@ -63,66 +51,77 @@ export default function LoginPage() {
         </div>
 
         <Card className="p-6">
-          <form onSubmit={handleDev} className="space-y-4">
+          <div className="mb-4 flex rounded-lg bg-white/5 p-1 text-sm">
+            <button
+              type="button"
+              onClick={() => setMode('login')}
+              className={`flex-1 rounded-md py-1.5 font-medium transition ${
+                mode === 'login' ? 'bg-white/10 text-slate-100' : 'text-slate-400'
+              }`}
+            >
+              Log in
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('register')}
+              className={`flex-1 rounded-md py-1.5 font-medium transition ${
+                mode === 'register' ? 'bg-white/10 text-slate-100' : 'text-slate-400'
+              }`}
+            >
+              Create account
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'register' && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-300">Merchant / shop name</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Acme Outfitters"
+                  className="input"
+                />
+              </div>
+            )}
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-300">
-                Developer login
-              </label>
+              <label className="mb-1 block text-sm font-medium text-slate-300">Email</label>
               <input
                 type="email"
                 required
-                value={devEmail}
-                onChange={(e) => setDevEmail(e.target.value)}
-                placeholder="demo@merchanthub.dev"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
                 className="input"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={devLoading}>
-              {devLoading ? 'Logging in…' : 'Log in'}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-300">Password</label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                className="input"
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
             </Button>
-            <p className="text-center text-xs text-slate-500">
-              The second demo tenant is{' '}
-              <code className="rounded bg-white/5 px-1 py-0.5 text-slate-300">
-                rival@merchanthub.dev
-              </code>
-            </p>
+            {mode === 'login' && (
+              <p className="text-center text-xs text-slate-500">
+                Demo accounts:{' '}
+                <code className="rounded bg-white/5 px-1 py-0.5 text-slate-300">demo@merchanthub.dev</code>{' '}
+                /{' '}
+                <code className="rounded bg-white/5 px-1 py-0.5 text-slate-300">rival@merchanthub.dev</code>{' '}
+                — password <code className="rounded bg-white/5 px-1 py-0.5 text-slate-300">demo1234</code> for both.
+              </p>
+            )}
           </form>
-
-          {supabaseOn && (
-            <>
-              <div className="my-5 flex items-center gap-3 text-xs text-slate-500">
-                <span className="h-px flex-1 bg-white/10" />
-                or sign in with Supabase
-                <span className="h-px flex-1 bg-white/10" />
-              </div>
-              <form onSubmit={handleSupabase} className="space-y-3">
-                <input
-                  type="email"
-                  required
-                  value={sbEmail}
-                  onChange={(e) => setSbEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="input"
-                />
-                <input
-                  type="password"
-                  required
-                  value={sbPassword}
-                  onChange={(e) => setSbPassword(e.target.value)}
-                  placeholder="Password"
-                  className="input"
-                />
-                <Button
-                  type="submit"
-                  variant="secondary"
-                  className="w-full"
-                  disabled={sbLoading}
-                >
-                  {sbLoading ? 'Signing in…' : 'Sign in with Supabase'}
-                </Button>
-              </form>
-            </>
-          )}
         </Card>
       </div>
     </div>

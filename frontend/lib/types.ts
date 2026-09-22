@@ -6,7 +6,7 @@ export interface Merchant {
   email: string;
 }
 
-export interface DevTokenResponse {
+export interface AuthResponse {
   token: string;
   tokenType: 'Bearer';
   merchant: Merchant;

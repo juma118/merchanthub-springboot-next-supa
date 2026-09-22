@@ -10,11 +10,8 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "merchanthub")
 public class AppProperties {
 
-    /** Supabase JWT secret (HS256) — validates inbound tokens and signs dev tokens. */
+    /** HS256 secret this service signs and validates its own JWTs with. */
     private String jwtSecret;
-
-    /** Whether the dev-token endpoint is exposed. MUST be false in production. */
-    private boolean devAuthEnabled = false;
 
     /** HMAC secret used to verify inbound shop webhooks. */
     private String webhookSecret;
@@ -42,9 +39,6 @@ public class AppProperties {
 
     public String getJwtSecret() { return jwtSecret; }
     public void setJwtSecret(String jwtSecret) { this.jwtSecret = jwtSecret; }
-
-    public boolean isDevAuthEnabled() { return devAuthEnabled; }
-    public void setDevAuthEnabled(boolean devAuthEnabled) { this.devAuthEnabled = devAuthEnabled; }
 
     public String getWebhookSecret() { return webhookSecret; }
     public void setWebhookSecret(String webhookSecret) { this.webhookSecret = webhookSecret; }

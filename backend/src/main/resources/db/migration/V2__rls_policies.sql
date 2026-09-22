@@ -71,8 +71,8 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   WHERE m.auth_user_id = p_auth_uid;
 $$;
 
--- Resolve by email — used by the dev-token endpoint to find a seeded merchant's
--- auth uid so a dev login lands in the right tenant.
+-- Resolve by email — used by POST /api/auth/login (and registration's duplicate-email
+-- check) to find the merchant's auth uid and password hash.
 CREATE OR REPLACE FUNCTION resolve_merchant_by_email(p_email text)
 RETURNS TABLE (id uuid, auth_user_id uuid, name text, email text, shop_api_key text)
 LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$

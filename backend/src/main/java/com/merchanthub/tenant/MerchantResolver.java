@@ -16,7 +16,7 @@ public class MerchantResolver {
         this.jdbc = jdbc;
     }
 
-    public record MerchantRow(UUID id, UUID authUserId, String name, String email, String shopApiKey) {}
+    public record MerchantRow(UUID id, UUID authUserId, String name, String email, String shopApiKey, String passwordHash) {}
 
     public Optional<MerchantRow> findByAuthUid(UUID authUid) {
         return jdbc.query(
@@ -24,15 +24,20 @@ public class MerchantResolver {
                 rs -> rs.next()
                         ? Optional.of(new MerchantRow(
                             rs.getObject("id", UUID.class), authUid,
-                            rs.getString("name"), rs.getString("email"), rs.getString("shop_api_key")))
+                            rs.getString("name"), rs.getString("email"), rs.getString("shop_api_key"), null))
                         : Optional.empty(),
                 authUid);
     }
 
     public Optional<MerchantRow> findByEmail(String email) {
         return jdbc.query(
-                "select id, auth_user_id, name, email, shop_api_key from resolve_merchant_by_email(?)",
-                rs -> rs.next() ? Optional.of(mapFull(rs)) : Optional.empty(),
+                "select id, auth_user_id, name, email, shop_api_key, password_hash from resolve_merchant_by_email(?)",
+                rs -> rs.next()
+                        ? Optional.of(new MerchantRow(
+                            rs.getObject("id", UUID.class), rs.getObject("auth_user_id", UUID.class),
+                            rs.getString("name"), rs.getString("email"), rs.getString("shop_api_key"),
+                            rs.getString("password_hash")))
+                        : Optional.empty(),
                 email);
     }
 
@@ -56,12 +61,19 @@ public class MerchantResolver {
         return jdbc.queryForObject("select provision_merchant(?, ?, ?)", UUID.class, authUid, name, email);
     }
 
+    /** Registers a new merchant with a password (POST /api/auth/register). Returns its id. */
+    public UUID registerWithPassword(UUID authUid, String name, String email, String passwordHash) {
+        return jdbc.queryForObject("select register_merchant(?, ?, ?, ?)", UUID.class,
+                authUid, name, email, passwordHash);
+    }
+
     private static MerchantRow mapFull(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new MerchantRow(
                 rs.getObject("id", UUID.class),
                 rs.getObject("auth_user_id", UUID.class),
                 rs.getString("name"),
                 rs.getString("email"),
-                rs.getString("shop_api_key"));
+                rs.getString("shop_api_key"),
+                null);
     }
 }

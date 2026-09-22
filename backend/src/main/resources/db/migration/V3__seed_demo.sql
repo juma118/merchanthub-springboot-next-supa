@@ -3,8 +3,8 @@
 -- (each only ever sees its own rows). Orders are scattered across the last 60
 -- days so the analytics endpoints have real trends to render.
 --
--- Dev login: POST /api/auth/dev-token { "email": "demo@merchanthub.dev" }
---            (also: rival@merchanthub.dev for the second tenant)
+-- Login: POST /api/auth/login { "email": "demo@merchanthub.dev", "password": "demo1234" }
+--        (also: rival@merchanthub.dev, same password, for the second tenant — see V5)
 -- Runs as postgres (superuser) so RLS does not block the seed.
 -- ─────────────────────────────────────────────────────────────────────────────
 

@@ -11,8 +11,6 @@ import {
   type ReactNode,
 } from 'react';
 import { api } from './api';
-import { getSupabase } from './supabase';
-import { isSupabaseConfigured } from './env';
 import { useToast } from '@/components/Toaster';
 import { useAuth } from './useAuth';
 import type { Alert } from './types';
@@ -100,40 +98,10 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     });
   }, [ready, token, refresh]);
 
-  // Realtime via Supabase, or polling fallback.
+  // Poll for new alerts/orders and toast on anything unseen.
   useEffect(() => {
     if (!ready || !token) return;
 
-    if (isSupabaseConfigured()) {
-      const supabase = getSupabase();
-      if (!supabase) return;
-      const channel = supabase
-        .channel('merchanthub-realtime')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'alerts' },
-          (payload: { new?: { type?: string } }) => {
-            const type = payload?.new?.type ?? 'alert';
-            toast({ title: alertTitle(type), variant: 'info' });
-            refresh();
-          },
-        )
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'orders' },
-          () => {
-            toast({ title: 'New order received', variant: 'success' });
-            refresh();
-          },
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-
-    // Polling fallback.
     const interval = setInterval(async () => {
       if (!token) return;
       try {

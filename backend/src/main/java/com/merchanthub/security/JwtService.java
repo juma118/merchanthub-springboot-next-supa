@@ -52,7 +52,7 @@ public class JwtService {
         }
     }
 
-    /** Mints a short-lived HS256 token (dev only). */
+    /** Mints an HS256 token for a successful login/registration. */
     public String mint(UUID sub, String email, long ttlSeconds) {
         try {
             JWTClaimsSet claims = new JWTClaimsSet.Builder()

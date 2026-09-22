@@ -223,16 +223,36 @@ The job: every `/api/**` request (except a few public ones) must carry a valid *
 
 > **Concept — JWT:** a signed token the client sends in `Authorization: Bearer <token>`.
 > It contains claims (e.g. `sub` = user id, `email`). Because it's signed with a secret,
-> the server can trust it without a database session. Supabase issues these on login; we
-> validate them with the shared `SUPABASE_JWT_SECRET` (HS256 algorithm).
+> the server can trust it without a database session. This project mints and validates its
+> own — no external identity provider — with a shared `JWT_SECRET` (HS256 algorithm).
+
+### `AuthController.java` + `AuthService.java` — where a token comes from
+
+Before any of the JWT machinery below matters, something has to *issue* a token. Two endpoints,
+both `permitAll()` in `SecurityConfig`:
+
+- **`POST /api/auth/register`** `{name, email, password}` — `AuthService.register` checks
+  `MerchantResolver.findByEmail` first (409 if taken), hashes the password with the
+  `PasswordEncoder` bean (`BCryptPasswordEncoder`), and calls `MerchantResolver.registerWithPassword`,
+  which runs the `register_merchant` `SECURITY DEFINER` SQL function (V5 migration) to insert the
+  row — the same "read/write the `merchants` table before any tenant context exists" problem
+  as the rest of §7's lookups, solved the same way.
+- **`POST /api/auth/login`** `{email, password}` — looks the merchant up by email, compares the
+  submitted password against the stored hash with `passwordEncoder.matches(...)`, and returns
+  the same generic `401 Invalid email or password` whether the email doesn't exist or the
+  password is wrong (never reveal which one failed — that's a user-enumeration leak).
+
+Both paths converge on `issueToken(authUid, merchantId, name, email)`, which calls
+`JwtService.mint(...)` below. Everything from here on treats "how did this client get a JWT"
+as already solved.
 
 ### `JwtService.java` — validate and mint tokens
 
 Two methods:
 - `validate(token)` → checks the signature and expiry using the secret, returns the `sub`
   (auth user id) and `email`. Throws if invalid/expired.
-- `mint(sub, email, ttl)` → creates a signed token. Used **only** by the dev-login endpoint
-  so you can run the app without a real Supabase account.
+- `mint(sub, email, ttl)` → creates a signed token. Called by `AuthService` on a successful
+  `POST /api/auth/register` or `/login` — this app is its own identity provider.
 
 Uses the Nimbus JOSE library directly (`MACSigner`/`MACVerifier` = HMAC for HS256).
 
@@ -253,7 +273,10 @@ A `OncePerRequestFilter` (servlet filter guaranteed to run once per request). Lo
    protected ones get rejected later).
 2. Validate the token via `JwtService`. Invalid → respond `401` immediately.
 3. Resolve the merchant from the token's `sub` (via `MerchantResolver`, §7). If this auth
-   user has no merchant yet, **auto-provision** one (first-login onboarding).
+   user has no merchant yet, **auto-provision** one — a leftover safety net from before
+   registration existed as its own endpoint; in normal operation `AuthService.register`
+   already created the row before any token was ever minted, so this branch shouldn't fire,
+   but it's cheap insurance against a token existing for a merchant that isn't there.
 4. Put a `MerchantPrincipal` into Spring Security's `SecurityContext` (so the request counts
    as authenticated) **and** the merchant id into `TenantContext` (so queries get scoped).
 5. `chain.doFilter(...)` — continue to the controller.
@@ -518,7 +541,7 @@ The services and what they teach:
 | `WebhookService` | verify + dispatch inbound webhooks; also the shared entry point both ingestion paths below call into | HMAC signature check; sets `TenantContext` manually |
 | `WebhookPersistenceService` | transactional write for a webhook | exists *only* to dodge the self-invocation proxy trap (§7) |
 | `WebhookEventListener` (`messaging/`) | consumes `order.webhook.received` from Kafka | the *async* ingestion path — see the note below |
-| `AuthService` | mint dev tokens | dev-only login; deterministic auth id from email |
+| `AuthService` | register/login, mint JWTs | BCrypt password hashing; self-contained auth, no external IdP |
 
 A few worth reading closely:
 
@@ -710,8 +733,8 @@ A sensible order to read the code with this guide open:
    how it boots and is configured.
 2. **Follow one read request:** `ProductController.list` → `ProductService.list` →
    `ProductRepository.search`. See the layers and DTO mapping.
-3. **Then security:** `JwtAuthFilter` → `JwtService` → `SecurityConfig`. Understand how a
-   request becomes "authenticated as merchant X".
+3. **Then security:** `AuthController`/`AuthService` (where a token is born) → `JwtAuthFilter` →
+   `JwtService` → `SecurityConfig`. Understand how a request becomes "authenticated as merchant X".
 4. **Then the magic:** `TenantContext` → `TenantIsolationAspect` → `V2__rls_policies.sql`.
    Re-read §7 until the ordering + RLS click — this is the most valuable concept here.
 5. **Then a write path:** `ProductController.create` → `ProductService.create` (uniqueness

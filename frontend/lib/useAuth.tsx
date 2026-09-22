@@ -18,16 +18,14 @@ import {
   getStoredMerchant,
   setStoredMerchant,
 } from './token';
-import { getSupabase } from './supabase';
-import { isSupabaseConfigured } from './env';
 import type { Merchant } from './types';
 
 interface AuthContextValue {
   token: string | null;
   merchant: Merchant | null;
   ready: boolean;
-  loginDev: (email: string) => Promise<void>;
-  loginSupabase: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   refreshMerchant: () => Promise<void>;
 }
@@ -47,13 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setReady(true);
   }, []);
 
-  const applyToken = useCallback((tok: string, m?: Merchant) => {
+  const applyToken = useCallback((tok: string, m: Merchant) => {
     persistToken(tok);
     setTokenState(tok);
-    if (m) {
-      setStoredMerchant(m);
-      setMerchant(m);
-    }
+    setStoredMerchant(m);
+    setMerchant(m);
   }, []);
 
   const refreshMerchant = useCallback(async () => {
@@ -67,43 +63,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const loginDev = useCallback(
-    async (email: string) => {
-      const res = await api.devToken(email);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await api.login(email.trim(), password);
       applyToken(res.token, res.merchant);
       router.push('/dashboard');
     },
     [applyToken, router],
   );
 
-  const loginSupabase = useCallback(
-    async (email: string, password: string) => {
-      const supabase = getSupabase();
-      if (!supabase) throw new Error('Supabase is not configured.');
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw new Error(error.message);
-      const accessToken = data.session?.access_token;
-      if (!accessToken) throw new Error('No access token returned from Supabase.');
-      applyToken(accessToken);
-      try {
-        const me = await api.me();
-        applyToken(accessToken, { id: me.id, name: me.name, email: me.email });
-      } catch {
-        // backend may still resolve later
-      }
+  const register = useCallback(
+    async (name: string, email: string, password: string) => {
+      const res = await api.register(name.trim(), email.trim(), password);
+      applyToken(res.token, res.merchant);
       router.push('/dashboard');
     },
     [applyToken, router],
   );
 
   const logout = useCallback(() => {
-    if (isSupabaseConfigured()) {
-      const supabase = getSupabase();
-      supabase?.auth.signOut().catch(() => {});
-    }
     clearToken();
     setTokenState(null);
     setMerchant(null);
@@ -115,12 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       merchant,
       ready,
-      loginDev,
-      loginSupabase,
+      login,
+      register,
       logout,
       refreshMerchant,
     }),
-    [token, merchant, ready, loginDev, loginSupabase, logout, refreshMerchant],
+    [token, merchant, ready, login, register, logout, refreshMerchant],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

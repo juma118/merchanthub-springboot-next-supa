@@ -53,7 +53,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         String email = claims.email();
                         String name = deriveName(email);
                         UUID id = merchantResolver.provision(claims.sub(), name, email);
-                        return new MerchantResolver.MerchantRow(id, claims.sub(), name, email, null);
+                        return new MerchantResolver.MerchantRow(id, claims.sub(), name, email, null, null);
                     });
 
             MerchantPrincipal principal = new MerchantPrincipal(merchant.id(), claims.sub(), claims.email());

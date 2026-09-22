@@ -58,10 +58,9 @@ server:
 
 # Application-specific configuration
 merchanthub:
-  # Supabase JWT secret (HS256). Validates inbound tokens AND signs dev tokens.
-  jwt-secret: ${SUPABASE_JWT_SECRET:super-secret-dev-jwt-signing-key-change-me-please-32b}
-  # Accepted issuer/audience are not strictly enforced for the local demo.
-  dev-auth-enabled: ${DEV_AUTH_ENABLED:true}
+  # HS256 secret this service signs and validates its own JWTs with
+  # (POST /api/auth/register, /login). Self-contained — no external identity provider.
+  jwt-secret: ${JWT_SECRET:super-secret-dev-jwt-signing-key-change-me-please-32b}
   webhook-secret: ${WEBHOOK_SECRET:dev-webhook-hmac-secret-change-me}
   shop-api-base-url: ${SHOP_API_BASE_URL:http://localhost:4000}
   sync-interval-ms: ${SYNC_INTERVAL_MS:300000}

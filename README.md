@@ -5,7 +5,7 @@ Merchants connect their shop; the system ingests orders in real time, tracks inv
 forecasts low stock, and surfaces sales analytics — all with **strict tenant isolation**
 enforced at two independent layers.
 
-> **Stack:** Java 21 + Spring Boot 3 · Next.js 14 (App Router) · PostgreSQL (Supabase-compatible) ·
+> **Stack:** Java 21 + Spring Boot 3 · Quarkus · Kafka · Next.js 14 (App Router) · PostgreSQL ·
 > Node/Express mock shop API · Docker Compose · Tailwind + Recharts (dark UI)
 
 ---
@@ -36,7 +36,7 @@ Revenue trend with period-over-period delta, order funnel, and top products.
 |---|---|
 | ![Orders](docs/screenshots/05-orders.png) | ![Alerts](docs/screenshots/06-alerts.png) |
 
-| Sync (push + pull ingestion) | Developer login |
+| Sync (push + pull ingestion) | Login |
 |---|---|
 | ![Sync](docs/screenshots/07-sync.png) | ![Login](docs/screenshots/01-login.png) |
 
@@ -80,9 +80,10 @@ Then open:
 | Swagger UI     | http://localhost:8080/swagger-ui.html |
 | Mock shop API  | http://localhost:4000/health          |
 
-**Log in:** on the dashboard use **Developer login** with `demo@merchanthub.dev`
-(the seed data's primary tenant). A second tenant — `rival@merchanthub.dev` — exists so
-you can verify that neither merchant can ever see the other's data.
+**Log in:** on the dashboard, log in with `demo@merchanthub.dev` / `demo1234`
+(the seed data's primary tenant). A second tenant — `rival@merchanthub.dev` / `demo1234` —
+exists so you can verify that neither merchant can ever see the other's data. Or click
+**Create account** to register a brand-new tenant from scratch.
 
 > First build takes a few minutes (Maven + npm dependency downloads). Subsequent runs are cached.
 
@@ -92,9 +93,9 @@ you can verify that neither merchant can ever see the other's data.
 
 This is the headline of the project. A bug in one layer cannot leak data across tenants.
 
-1. **Application layer (primary).** The Spring `JwtAuthFilter` validates the Supabase JWT,
-   resolves the `merchant_id`, and pins it into a `TenantContext`. Every service query is
-   scoped by that id.
+1. **Application layer (primary).** The Spring `JwtAuthFilter` validates a self-issued JWT
+   (`POST /api/auth/register`/`/login`), resolves the `merchant_id`, and pins it into a
+   `TenantContext`. Every service query is scoped by that id.
 
 2. **Database layer (safety net).** The backend connects as a **non-superuser Postgres role**
    (`merchanthub_app`) that has **no `BYPASSRLS`**. Before each transaction,
@@ -104,8 +105,8 @@ This is the headline of the project. A bug in one layer cannot leak data across 
    `WHERE merchant_id = ?`.
 
    *Migrations* run as the admin/superuser (they create roles, extensions, RLS, seed data);
-   only the *runtime* connects as the restricted role. This mirrors a real Supabase setup
-   while making the RLS net genuinely demonstrable locally.
+   only the *runtime* connects as the restricted role, so the RLS net is genuinely
+   demonstrable locally, not just decorative.
 
 Lookups that must happen *before* a tenant context exists (login, webhook auth, the
 all-tenant sync job) go through `SECURITY DEFINER` SQL functions, the only sanctioned way
@@ -122,7 +123,7 @@ to touch the `merchants` table unscoped.
 | **Webhook ingestion (push)** | `webhook-ingest-service` (Quarkus) verifies HMAC-SHA256 + resolves merchant at the edge → Kafka → `WebhookEventListener` persists |
 | **Scheduled pull-sync (reliability)** | `SchedulingConfig` + `SyncScheduler` → `SyncService` (all tenants) |
 | **Low-stock detection & alerts** | `InventoryService` raises `low_stock` alerts on threshold crossing |
-| **Realtime notifications** | `alerts`/`orders` row changes → Supabase Realtime → dashboard toasts (polling fallback) |
+| **Realtime notifications** | 10-second poll for unread alerts → dashboard toasts |
 | **Event-driven microservice** | Backend outbox → Kafka → `notification-service` consumes `order.ingested` / `inventory.low-stock` |
 | **Server-side analytics** | `AnalyticsService`: revenue trends + period compare, top products, funnel, forecast |
 | **Inventory forecasting** | 30-day moving average → days-to-stockout (`/api/analytics/forecast`) |
@@ -137,8 +138,8 @@ to touch the `merchants` table unscoped.
 curl -X POST "http://localhost:4000/shop/simulate/order?apiKey=demo-shop-key-acme"
 
 # Pull: trigger an on-demand reconciliation sync (needs a Bearer token — grab one first).
-TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/dev-token \
-  -H 'Content-Type: application/json' -d '{"email":"demo@merchanthub.dev"}' | jq -r .token)
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H 'Content-Type: application/json' -d '{"email":"demo@merchanthub.dev","password":"demo1234"}' | jq -r .token)
 curl -X POST http://localhost:8080/api/sync/run -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -154,22 +155,20 @@ All settings live in [`.env.example`](.env.example) with sensible local defaults
 
 | Variable | Purpose |
 |---|---|
-| `SUPABASE_JWT_SECRET` | HS256 secret to validate (and, in dev, mint) JWTs. Set to your Supabase project's JWT secret in prod. |
-| `DEV_AUTH_ENABLED` | Exposes `POST /api/auth/dev-token`. **Must be `false` in production.** |
+| `JWT_SECRET` | HS256 secret this service signs and validates its own JWTs with. **Generate a real random one for prod** — this is the only credential guarding every tenant's data. |
 | `WEBHOOK_SECRET` | HMAC key for verifying inbound shop webhooks. |
 | `SYNC_INTERVAL_MS` | Pull-sync cadence. `0` disables the scheduler. |
 | `ANTHROPIC_API_KEY` | Enables `GET /api/insights/daily-summary`. Blank → endpoint still responds with the real numbers, `aiAvailable:false`. |
 | `REPORTS_S3_BUCKET` / `REPORTS_S3_ENDPOINT_OVERRIDE` | Enables `POST /api/reports/orders/export`. Point the override at LocalStack/MinIO for local dev without real AWS. |
-| `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` | Optional. Set to enable real Supabase Auth + Realtime; leave blank to use dev-token auth + polling. |
 
-### Using a real Supabase project
+### Auth model
 
-1. Create a Supabase project; run the migrations in `backend/src/main/resources/db/migration`
-   against it (or point Flyway at it via `DB_ADMIN_URL`).
-2. Set `SUPABASE_JWT_SECRET` to the project's JWT secret and the `NEXT_PUBLIC_SUPABASE_*`
-   vars to the project URL + anon key.
-3. Set `DEV_AUTH_ENABLED=false`. The dashboard then uses Supabase Auth and subscribes to
-   Realtime `postgres_changes` on `alerts`/`orders`.
+Self-contained — no external identity provider. `POST /api/auth/register` creates a merchant
+with a BCrypt-hashed password (`V5__auth_password.sql`); `POST /api/auth/login` checks it and
+mints an HS256 JWT (`JwtService`) that `JwtAuthFilter` validates on every `/api/**` request
+after that. Deploying for real is just: set a strong random `JWT_SECRET`, run behind TLS, and
+consider adding short token TTLs + refresh (see `docs/INTERVIEW_QA.md` §9 for the hardening
+discussion).
 
 ---
 
@@ -214,8 +213,8 @@ Next.js dashboard ──REST + JWT──▶ Spring Boot API ──restricted rol
         ▲                                │  ▲   ▲                                        │
         │                                │  │   └── order.ingested / inventory.low-stock ─┴──▶ Kafka ──▶ notification-service
         │                                │  └── order.webhook.received ◀── Kafka ◀── webhook-ingest-service (Quarkus)
-        └────── Supabase Realtime ───────┘                                                     ▲
-             (alerts / orders row changes)                              HMAC-verified webhook ──┘
+        └────── 10s alert polling ───────┘                                                     ▲
+                                                                          HMAC-verified webhook ──┘
                                                                                 Mock Shop API
 ```
 
