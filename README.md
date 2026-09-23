@@ -10,6 +10,66 @@ enforced at two independent layers.
 
 ---
 
+## Overview
+
+Most "multi-tenant SaaS" demos stop at a `merchant_id` column and a `WHERE` clause. That's
+the layer an easy-to-write bug can slip through — one forgotten filter and tenant A sees
+tenant B's orders. MerchantHub exists to answer a narrower, harder question: **what does it
+take to make that leak structurally impossible, not just unlikely?** The answer here is
+defense-in-depth — application-layer scoping backed by a Postgres Row-Level Security net that
+holds even when the application code doesn't (see [below](#the-two-isolation-layers-defense-in-depth)) — built around a scenario realistic
+enough to need it: a shop connects, orders arrive by two independent paths, inventory reacts
+to them, and the numbers get turned into analytics a merchant would actually look at.
+
+Everything downstream of that core is built to be genuinely exercised, not just present for
+show: two ingestion paths (signed webhook push + scheduled pull-sync) that converge on one
+idempotent method so neither can double-count an order; a Kafka-based event boundary between
+services, including a standalone Quarkus edge service built to a GraalVM native image for the
+public webhook front door; server-computed analytics (revenue trends, funnel, stockout
+forecasting) instead of client-side math; an AI-generated daily summary that's grounded in
+those same numbers rather than free-floating LLM output; self-contained JWT auth with BCrypt
+password hashing; and JUnit 5 + Testcontainers integration tests that prove the isolation
+claim against a real Postgres, not a mock.
+
+**Highlights:**
+- **Two-layer tenant isolation** — Spring-side `TenantContext` scoping *and* Postgres RLS
+  enforced against a non-superuser role, so a missing `WHERE merchant_id = ?` still can't
+  leak data.
+- **Dual order ingestion** — HMAC-signed webhooks (push, low-latency) and a scheduled
+  reconciliation sync (pull, reliability backstop), both idempotent on `external_id`.
+- **Polyglot microservices** — a Spring Boot core, a standalone Quarkus edge service for
+  webhook verification, and a Spring Boot Kafka consumer for notifications, talking to each
+  other over Kafka rather than direct HTTP calls.
+- **Server-side analytics** — revenue trend + period-over-period comparison, top products,
+  order funnel, and 30-day-moving-average stockout forecasting, all computed in SQL.
+- **Applied GenAI, not a chatbot bolt-on** — a daily insights endpoint that grounds an
+  Anthropic Claude summary in the exact analytics numbers the dashboard already shows, so
+  nothing in the generated text is unverifiable.
+- **Ops-shaped extras** — CSV report export to S3 via presigned URLs, and structured JSON
+  logging with per-request/per-tenant correlation ids, the pattern a Splunk forwarder or HEC
+  sidecar ingests directly off stdout.
+- **Tested where it matters** — Testcontainers-backed integration tests prove tenant
+  isolation, signed-webhook ingestion, and the auth flow against a real Postgres instance,
+  not an in-memory substitute that behaves differently.
+
+### Tech stack by concern
+
+| Concern | Technology |
+|---|---|
+| Backend API | Java 21, Spring Boot 3, Spring Data JPA/Hibernate, Spring Security |
+| Webhook edge service | Quarkus, GraalVM native image |
+| Messaging | Apache Kafka (KRaft mode), transactional outbox pattern |
+| Database | PostgreSQL 16, Row-Level Security, Flyway migrations |
+| Frontend | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Recharts |
+| Auth | Self-issued HS256 JWTs, BCrypt password hashing |
+| Applied AI | Anthropic Claude (Messages API), grounded generation over server-computed analytics |
+| Cloud | AWS S3 (presigned CSV export) |
+| Observability | Structured JSON logging (Logstash encoder), per-request/tenant MDC correlation ids |
+| Testing | JUnit 5, Testcontainers, Mockito |
+| Infra | Docker Compose, multi-stage Docker builds |
+
+---
+
 ## Screenshots
 
 > Modern dark UI built with Tailwind CSS. Detail popups (order drawer, product modal)
